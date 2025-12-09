@@ -11,6 +11,7 @@ public class HowToPlay extends JFrame {
   public HowToPlay() {
     HowToPlayEventListener listener = new HowToPlayEventListener();
     GLCanvas glcanvas = new GLCanvas();
+    Timer timerListener = new Timer();
     glcanvas.addGLEventListener(listener);
     glcanvas.addMouseListener(listener);
     getContentPane().add(glcanvas, BorderLayout.CENTER);
