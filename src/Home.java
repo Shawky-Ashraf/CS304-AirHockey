@@ -6,21 +6,32 @@ import java.awt.event.*;
 import Texture.TextureReader;
 import javax.media.opengl.glu.GLU;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.BitSet;
 import javax.sound.sampled.*;
 import Pages.*;
 
 public class Home extends JFrame {
+  AudioInputStream audioStream;
+  Clip clip;
+
   public Home() {
-    HomeEventListener listener = new HomeEventListener();
+    try {
+      audioStream = AudioSystem.getAudioInputStream(new File("Assets\\sound\\game.wav"));
+      clip = AudioSystem.getClip();
+      clip.open(audioStream);
+      clip.loop(Clip.LOOP_CONTINUOUSLY);
+    } catch (Exception e){
+      e.printStackTrace();
+    }
+
+    HomeEventListener listener = new HomeEventListener(clip);
     GLCanvas glcanvas = new GLCanvas();
     glcanvas.addKeyListener(listener);
     glcanvas.addGLEventListener(listener);
     glcanvas.addMouseListener(listener);
     glcanvas.addMouseMotionListener(listener);
     getContentPane().add(glcanvas, BorderLayout.CENTER);
-
-    // glcanvas.addKeyListener((KeyListener) listener);
     Animator animator = new FPSAnimator(60);
     animator.add(glcanvas);
     animator.start();
@@ -32,47 +43,37 @@ public class Home extends JFrame {
     setVisible(true);
     setFocusable(true);
     glcanvas.requestFocus();
-    // Play background music or sound effect
-    // if (flag == 0){
-    playSound("Assets\\sound\\game.wav");
-    // }
-  }
 
-  public void playSound(String filePath) {
-    try {
-      File soundFile = new File(filePath);
-      AudioInputStream audioStream = AudioSystem.getAudioInputStream(soundFile);
-      Clip clip = AudioSystem.getClip();
-      clip.open(audioStream);
-      clip.loop(Clip.LOOP_CONTINUOUSLY); // Use this for continuous background music
-      clip.start();
-    } catch (Exception e) {
-      System.err.println("Error playing sound: " + e.getMessage());
-    }
+    // Play background music or sound effect
+    clip.start();
   }
 }
 
 class HomeEventListener implements GLEventListener, MouseMotionListener, MouseListener, KeyListener {
-  /*
-   * // ? number from 0 to 9
-   * // ? letter from 10 to 35
-   * // ? how to play in 36
-   */
+
   final static String ASSETS_PATH = "Assets\\Sprites";
   final static String[] textureNames = new File(ASSETS_PATH).list();
   TextureReader.Texture texture[] = new TextureReader.Texture[textureNames.length];
   final int textures[] = new int[textureNames.length];
-
-  GL gl; // global gl drawable to use in the class
   final int orthoX = 600, orthoY = 350;
   int windowWidth = 2 * orthoX, windowHight = 2 * orthoY, flag = 0;
+
+  GL gl; // global gl drawable to use in the class
   int[] mouse = new int[2];
   boolean[] mouseClicked = {false};
+  BitSet keyBits = new BitSet(256);
+  ArrayList<Integer> input = new ArrayList<>(7);
+
+  UserName userName;
   HowToPlay howToPlay;
   HighScores HighScores;
   Levels levels;
   Game game;
-  BitSet keyBits = new BitSet(256);
+  Clip clip; // Global clip to manage background music
+
+  public HomeEventListener(Clip clip) {
+      this.clip = clip;
+  }
 
   @Override
   public void init(GLAutoDrawable arg0) {
@@ -108,6 +109,7 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
       HighScores = new HighScores(gl, textures);
       levels = new Levels(textures, gl);
       game = new Game(gl, textures, mouse, mouseClicked, keyBits);
+      userName = new UserName(gl, input, textures);
     } catch (FileNotFoundException e) {
       throw new RuntimeException(e);
     }
@@ -116,7 +118,7 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
   @Override
   public void display(GLAutoDrawable arg0) {
     // Clear the screen
-    gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
+    gl.glClear(GL.GL_COLOR_BUFFER_BIT);
 
     // Draw based on the current flag
     // Home screen
@@ -130,10 +132,11 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
         drawLevels();
       }
     }
+
+    userName.printInput();
   }
 
   private void draw(int index, double x, double y) {
-    color(255, 255, 255);
     draw(index, x, y, 260, 100);
   }
 
@@ -215,12 +218,15 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
         }
       }
       if (mouse[1] < -250 && mouse[1] > -350) {
-        if (mouse[0] > -600 && mouse[0] < -550) {
-          System.exit(0);
-        } else if (mouse[0] > 550 && mouse[0] < 600) {
-          // music on/off
+        if (mouse[0] > 550 && mouse[0] < 600) { // Music on/off
+          if(clip.isActive()){
+            clip.stop();
+          } else {
+            clip.start();
+          }
         }
       }
+
     } else if (flag == 3 || flag == 4 || flag == 1 || flag == 2) {
       if (flag == 1) {
         if (mouse[0] > -130 && mouse[0] < 130) {
@@ -266,7 +272,17 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
 
   @Override
   public void keyTyped(KeyEvent e) {
-
+    int ch = e.getKeyChar();
+    int backSpaceCode = 8;
+    System.out.println(ch);
+    System.out.println("keyFuckenTyped");
+    if(ch >= 'a' && ch <= 'z' && input.size() <= 6){
+        input.add(ch - 'a' + 10);
+      System.out.println(input);
+    } else if(ch == backSpaceCode && input.size() > 0){
+        input.remove(input.size() - 1);
+      System.out.println(input);
+    }
   }
 
   @Override
@@ -279,10 +295,6 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
   public void keyReleased(KeyEvent e) {
     int key = e.getKeyCode();
     keyBits.clear(key);
-  }
-
-  private void color(float r, float g, float b) {
-    gl.glColor3f(r / 255, g / 255, b / 255);
   }
 
   private double convertX(double x) {
@@ -345,7 +357,7 @@ class HomeEventListener implements GLEventListener, MouseMotionListener, MouseLi
       AudioInputStream audioStream = AudioSystem.getAudioInputStream(soundFile);
       Clip clip = AudioSystem.getClip();
       clip.open(audioStream);
-      // clip.loop(Clip.LOOP_CONTINUOUSLY); // Use this for continuous background
+      // clip.loop(Clip.LOOP_CONTINUOUSLY); // don't loop
       // music
       clip.start();
     } catch (Exception e) {
